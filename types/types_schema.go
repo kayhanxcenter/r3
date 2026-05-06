@@ -617,9 +617,58 @@ type Relation struct {
 	Indexes           []PgIndex        `json:"indexes"`           // read only, all relation indexes
 	Policies          []RelationPolicy `json:"policies"`          // read only, all relation policies
 	Presets           []Preset         `json:"presets"`           // read only, all relation presets
+	View              *RelationView    `json:"view,omitempty"`    // optional, read-only PostgreSQL view metadata
 
 	// legacy
 	Triggers []PgTrigger `json:"triggers"` // moved to module pgTriggers
+}
+type RelationView struct {
+	RelationId  uuid.UUID               `json:"relationId"`
+	HasId       bool                    `json:"hasId"`
+	Managed     bool                    `json:"managed"`
+	Sql         pgtype.Text             `json:"sql"`
+	SqlTemplate pgtype.Text             `json:"sqlTemplate"`
+	Definition  *RelationViewDefinition `json:"definition,omitempty"`
+}
+type RelationViewDefinition struct {
+	BaseRelationId uuid.UUID                      `json:"baseRelationId"`
+	Joins          []RelationViewDefinitionJoin   `json:"joins"`
+	Columns        []RelationViewDefinitionColumn `json:"columns"`
+	Filters        []RelationViewDefinitionFilter `json:"filters"`
+	Havings        []RelationViewDefinitionHaving `json:"havings"`
+	Orders         []RelationViewDefinitionOrder  `json:"orders"`
+}
+type RelationViewDefinitionJoin struct {
+	RelationId  uuid.UUID `json:"relationId"`
+	AttributeId uuid.UUID `json:"attributeId"`
+	Required    bool      `json:"required"`
+}
+type RelationViewDefinitionColumn struct {
+	RelationId  uuid.UUID `json:"relationId"`
+	AttributeId uuid.UUID `json:"attributeId"`
+	Alias       string    `json:"alias"`
+	Aggregate   string    `json:"aggregate"`
+	Function    string    `json:"function"`
+	Fallback    string    `json:"fallback"`
+}
+type RelationViewDefinitionFilter struct {
+	Connector   string    `json:"connector"`
+	RelationId  uuid.UUID `json:"relationId"`
+	AttributeId uuid.UUID `json:"attributeId"`
+	Function    string    `json:"function"`
+	Fallback    string    `json:"fallback"`
+	Operator    string    `json:"operator"`
+	Value       string    `json:"value"`
+}
+type RelationViewDefinitionHaving struct {
+	Connector   string `json:"connector"`
+	ColumnAlias string `json:"columnAlias"`
+	Operator    string `json:"operator"`
+	Value       string `json:"value"`
+}
+type RelationViewDefinitionOrder struct {
+	ColumnAlias string `json:"columnAlias"`
+	Direction   string `json:"direction"`
 }
 type RelationPolicy struct {
 	RoleId           uuid.UUID     `json:"roleId"`

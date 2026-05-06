@@ -844,8 +844,8 @@ export function getTemplateQueryFilter() {
 		}
 	};
 };
-export function getTemplateRelation(moduleId,name,encryption) {
-	return {
+export function getTemplateRelation(moduleId,name,encryption,view) {
+	let relation = {
 		id:getUuidV4(),
 		moduleId:moduleId,
 		name:name,
@@ -860,6 +860,20 @@ export function getTemplateRelation(moduleId,name,encryption) {
 			relationTitle:{}
 		}
 	};
+	if(view !== undefined && view !== null) {
+		relation.encryption      = false;
+		relation.retentionCount  = null;
+		relation.retentionDays   = null;
+		relation.view = {
+			relationId:relation.id,
+			hasId:view.hasId,
+			managed:view.managed,
+			sql:view.sql,
+			sqlTemplate:view.sqlTemplate,
+			definition:view.definition
+		};
+	}
+	return relation;
 };
 export function getTemplateRelationPolicy() {
 	return {

@@ -1451,7 +1451,18 @@ export default {
 			return out;
 		},
 		joinsIndexMapField:s => {
-			return s.isQuery ? s.getJoinsIndexMap(s.query.joins) : {};
+			if(!s.isQuery)
+				return {};
+
+			let map = s.getJoinsIndexMap(s.query.joins);
+			if(s.query.relationId !== null && map[0] === undefined) {
+				map[0] = {
+					index:0,
+					indexFrom:-1,
+					relationId:s.query.relationId
+				};
+			}
+			return map;
 		},
 		joinsKanbanAxis:s => {
 			if(!s.isKanban || s.field.relationIndexData === null)

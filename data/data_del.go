@@ -26,6 +26,9 @@ func Del_tx(ctx context.Context, tx pgx.Tx, relationId uuid.UUID, recordId int64
 	if !exists {
 		return handler.ErrSchemaUnknownRelation(relationId)
 	}
+	if rel.View != nil {
+		return fmt.Errorf("view relations are read-only")
+	}
 
 	// check for protected preset record
 	for _, preset := range rel.Presets {

@@ -96,34 +96,43 @@ var upgradeFunctions = map[string]func(ctx context.Context, tx pgx.Tx) (string, 
 	/*
 		ALTER TABLE instance.mail_account ALTER COLUMN connect_method
 			TYPE instance.mail_account_connect_method USING connect_method::TEXT::instance.mail_account_connect_method;
-
-		CREATE OR REPLACE FUNCTION instance.rest_get_placeholder_file_base64(file_id uuid, version integer DEFAULT 0)
-			RETURNS text
-			LANGUAGE 'plpgsql'
-			COST 100
-			STABLE PARALLEL UNSAFE
-		AS $BODY$
-		DECLARE
-		BEGIN
-			RETURN FORMAT('{FILE_BASE64:%s|%s}', file_id::TEXT, version);
-		END;
-		$BODY$;
-
-		CREATE OR REPLACE FUNCTION instance.rest_get_placeholder_file_raw(file_id uuid, version integer DEFAULT 0)
-			RETURNS text
-			LANGUAGE 'plpgsql'
-			COST 100
-			STABLE PARALLEL UNSAFE
-		AS $BODY$
-		DECLARE
-		BEGIN
-			RETURN FORMAT('{FILE_RAW:%s|%s}', file_id::TEXT, version);
-		END;
-		$BODY$;
 	*/
 
 	"3.11": func(ctx context.Context, tx pgx.Tx) (string, error) {
 		_, err := tx.Exec(ctx, `
+			-- PostgreSQL view relations
+			CREATE TABLE IF NOT EXISTS app.relation_view (
+				relation_id uuid NOT NULL,
+				has_id boolean NOT NULL DEFAULT true,
+				managed boolean NOT NULL DEFAULT false,
+				sql text,
+				sql_template text,
+				CONSTRAINT relation_view_pkey PRIMARY KEY (relation_id),
+				CONSTRAINT relation_view_relation_id_fkey FOREIGN KEY (relation_id)
+					REFERENCES app.relation (id) MATCH SIMPLE
+					ON UPDATE CASCADE
+					ON DELETE CASCADE
+					DEFERRABLE INITIALLY DEFERRED
+			);
+			ALTER TABLE app.relation_view
+				ADD COLUMN IF NOT EXISTS sql_template text;
+			ALTER TABLE app.relation_view
+				ADD COLUMN IF NOT EXISTS definition_json jsonb;
+
+			CREATE TABLE IF NOT EXISTS app.relation_view_depends (
+				relation_id uuid NOT NULL,
+				entity text NOT NULL,
+				entity_id uuid NOT NULL,
+				CONSTRAINT relation_view_depends_pkey PRIMARY KEY (relation_id, entity, entity_id),
+				CONSTRAINT relation_view_depends_relation_id_fkey FOREIGN KEY (relation_id)
+					REFERENCES app.relation (id) MATCH SIMPLE
+					ON UPDATE CASCADE
+					ON DELETE CASCADE
+					DEFERRABLE INITIALLY DEFERRED
+			);
+			CREATE INDEX IF NOT EXISTS fki_relation_view_depends_entity
+				ON app.relation_view_depends USING btree (entity, entity_id);
+
 			-- cleanup from last release
 			ALTER TABLE instance.oauth_client ALTER COLUMN flow
 				TYPE instance.oauth_client_flow USING flow::TEXT::instance.oauth_client_flow;
@@ -1042,31 +1051,6 @@ var upgradeFunctions = map[string]func(ctx context.Context, tx pgx.Tx) (string, 
 				FROM instance_cluster.node;
 				
 				RETURN 0;
-			END;
-			$BODY$;
-
-			-- REST call placeholder functions
-			CREATE OR REPLACE FUNCTION instance.rest_get_placeholder_file_base64(file_id uuid, version integer DEFAULT 0)
-				RETURNS text
-				LANGUAGE 'plpgsql'
-				COST 100
-				STABLE PARALLEL UNSAFE
-			AS $BODY$
-			DECLARE
-			BEGIN
-				RETURN FORMAT('{FILE_BASE64:%s|%s}', file_id::TEXT, version);
-			END;
-			$BODY$;
-
-			CREATE OR REPLACE FUNCTION instance.rest_get_placeholder_file_raw(file_id uuid, version integer DEFAULT 0)
-				RETURNS text
-				LANGUAGE 'plpgsql'
-				COST 100
-				STABLE PARALLEL UNSAFE
-			AS $BODY$
-			DECLARE
-			BEGIN
-				RETURN FORMAT('{FILE_RAW:%s|%s}', file_id::TEXT, version);
 			END;
 			$BODY$;
 		`)
@@ -3204,6 +3188,31 @@ var upgradeFunctions = map[string]func(ctx context.Context, tx pgx.Tx) (string, 
 					FROM instance.preset_record
 					WHERE preset_id = _preset_id
 				);
+			END;
+			$BODY$;
+
+			-- REST call placeholder functions
+			CREATE OR REPLACE FUNCTION instance.rest_get_placeholder_file_base64(file_id uuid, version integer DEFAULT 0)
+				RETURNS text
+				LANGUAGE 'plpgsql'
+				COST 100
+				STABLE PARALLEL UNSAFE
+			AS $BODY$
+			DECLARE
+			BEGIN
+				RETURN FORMAT('{FILE_BASE64:%s|%s}', file_id::TEXT, version);
+			END;
+			$BODY$;
+
+			CREATE OR REPLACE FUNCTION instance.rest_get_placeholder_file_raw(file_id uuid, version integer DEFAULT 0)
+				RETURNS text
+				LANGUAGE 'plpgsql'
+				COST 100
+				STABLE PARALLEL UNSAFE
+			AS $BODY$
+			DECLARE
+			BEGIN
+				RETURN FORMAT('{FILE_RAW:%s|%s}', file_id::TEXT, version);
 			END;
 			$BODY$;
 		`)

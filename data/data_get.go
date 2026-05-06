@@ -402,6 +402,15 @@ func prepareQuery(data types.DataGet, indexRelationIds map[int]uuid.UUID, queryA
 				continue
 			}
 
+			relId := indexRelationIds[index]
+			rel, exists := cache.RelationIdMap[relId]
+			if !exists {
+				return "", handler.ErrSchemaUnknownRelation(relId)
+			}
+			if rel.View != nil && !rel.View.HasId {
+				continue
+			}
+
 			inSelect = append(inSelect, fmt.Sprintf(`"%s"."%s" AS %s`,
 				getRelationCode(index, nestingLevel),
 				schema.PkName,
@@ -425,10 +434,19 @@ func prepareQuery(data types.DataGet, indexRelationIds map[int]uuid.UUID, queryA
 
 		// group by record ID if record must be kept during aggregation
 		if expr.Aggregator.String == "record" {
-			relId := getTupleIdCode(expr.Index, nestingLevel)
+			relId := indexRelationIds[expr.Index]
+			rel, exists := cache.RelationIdMap[relId]
+			if !exists {
+				return "", handler.ErrSchemaUnknownRelation(relId)
+			}
+			if rel.View != nil && !rel.View.HasId {
+				continue
+			}
 
-			if !slices.Contains(groupByItems, relId) {
-				groupByItems = append(groupByItems, relId)
+			tupleId := getTupleIdCode(expr.Index, nestingLevel)
+
+			if !slices.Contains(groupByItems, tupleId) {
+				groupByItems = append(groupByItems, tupleId)
 			}
 		}
 
