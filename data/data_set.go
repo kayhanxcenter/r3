@@ -53,6 +53,9 @@ func Set_tx(ctx context.Context, tx pgx.Tx, dataSetsByIndex map[int]types.DataSe
 		if !exists {
 			return indexRecordIds, handler.ErrSchemaUnknownRelation(dataSet.RelationId)
 		}
+		if rel.View != nil {
+			return indexRecordIds, fmt.Errorf("view relations are read-only")
+		}
 
 		// check write access to relation
 		// if no attributes are to be SET for an existing record, WRITE permission is not required

@@ -8,6 +8,7 @@ import (
 	"r3/schema/attribute"
 	"r3/schema/caption"
 	"r3/schema/pgFunction"
+	"r3/schema/relation_view"
 	"r3/types"
 
 	"github.com/gofrs/uuid"
@@ -16,6 +17,18 @@ import (
 )
 
 func Del_tx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
+
+	view, err := relation_view.Get_tx(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if view != nil {
+		if err := relation_view.Del_tx(ctx, tx, id); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `DELETE FROM app.relation WHERE id = $1`, id)
+		return err
+	}
 
 	modName, relName, err := schema.GetRelationNamesById_tx(ctx, tx, id)
 	if err != nil {
@@ -94,10 +107,14 @@ func Get_tx(ctx context.Context, tx pgx.Tx, moduleId uuid.UUID) ([]types.Relatio
 	relations := make([]types.Relation, 0)
 	for rows.Next() {
 		var r types.Relation
+		var attributeIdPk pgtype.UUID
 		if err := rows.Scan(&r.Id, &r.Name, &r.Comment, &r.Encryption, &r.RetentionCount,
-			&r.RetentionDays, &r.AttributeIdPk, &r.AttributeIdsTitle); err != nil {
+			&r.RetentionDays, &attributeIdPk, &r.AttributeIdsTitle); err != nil {
 
 			return nil, err
+		}
+		if attributeIdPk.Valid {
+			r.AttributeIdPk = attributeIdPk.Bytes
 		}
 		if r.AttributeIdsTitle == nil {
 			r.AttributeIdsTitle = make([]uuid.UUID, 0)
@@ -110,6 +127,10 @@ func Get_tx(ctx context.Context, tx pgx.Tx, moduleId uuid.UUID) ([]types.Relatio
 	rows.Close()
 
 	for i, r := range relations {
+		relations[i].View, err = relation_view.Get_tx(ctx, tx, r.Id)
+		if err != nil {
+			return nil, err
+		}
 		relations[i].Captions, err = caption.Get_tx(ctx, tx, schema.DbRelation, r.Id, []string{"relationTitle"})
 		if err != nil {
 			return nil, err
@@ -143,6 +164,10 @@ func Set_tx(ctx context.Context, tx pgx.Tx, rel types.Relation, fromLocal bool) 
 		if err != nil {
 			return err
 		}
+		viewEx, err := relation_view.Get_tx(ctx, tx, rel.Id)
+		if err != nil {
+			return err
+		}
 
 		// update relation reference
 		if _, err := tx.Exec(ctx, `
@@ -155,17 +180,37 @@ func Set_tx(ctx context.Context, tx pgx.Tx, rel types.Relation, fromLocal bool) 
 
 		// if name changed, update relation and all affected entities
 		if nameEx != rel.Name {
-			if _, err := tx.Exec(ctx, fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME TO "%s"`, moduleName, nameEx, rel.Name)); err != nil {
-				return err
+			if viewEx != nil {
+				if !viewEx.Managed {
+					return fmt.Errorf("cannot rename unmanaged view relation")
+				}
+				if _, err := tx.Exec(ctx, fmt.Sprintf(`ALTER VIEW "%s"."%s" RENAME TO "%s"`, moduleName, nameEx, rel.Name)); err != nil {
+					return err
+				}
+			} else {
+				if _, err := tx.Exec(ctx, fmt.Sprintf(`ALTER TABLE "%s"."%s" RENAME TO "%s"`, moduleName, nameEx, rel.Name)); err != nil {
+					return err
+				}
 			}
 
 			if err := pgFunction.RecreateAffectedBy_tx(ctx, tx, schema.DbRelation, rel.Id); err != nil {
 				return fmt.Errorf("failed to recreate affected PG functions, %s", err)
 			}
+			if err := relation_view.RecreateAffectedBy_tx(ctx, tx, string(schema.DbRelation), rel.Id); err != nil {
+				return fmt.Errorf("failed to recreate affected PG views, %s", err)
+			}
+		}
+
+		if rel.View != nil {
+			if err := relation_view.Set_tx(ctx, tx, rel); err != nil {
+				return err
+			}
 		}
 	} else {
-		if _, err := tx.Exec(ctx, fmt.Sprintf(`CREATE TABLE "%s"."%s" ()`, moduleName, rel.Name)); err != nil {
-			return err
+		if rel.View == nil {
+			if _, err := tx.Exec(ctx, fmt.Sprintf(`CREATE TABLE "%s"."%s" ()`, moduleName, rel.Name)); err != nil {
+				return err
+			}
 		}
 
 		// insert relation reference
@@ -177,8 +222,14 @@ func Set_tx(ctx context.Context, tx pgx.Tx, rel types.Relation, fromLocal bool) 
 			return err
 		}
 
+		if rel.View != nil {
+			if err := relation_view.Set_tx(ctx, tx, rel); err != nil {
+				return err
+			}
+		}
+
 		// create primary key attribute if relation is new (e. g. not imported or updated)
-		if fromLocal && !known {
+		if rel.View == nil && fromLocal && !known {
 			idAtr, err := uuid.NewV4()
 			if err != nil {
 				return err

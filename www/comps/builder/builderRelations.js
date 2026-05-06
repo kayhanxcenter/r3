@@ -18,12 +18,22 @@ let MyBuilderRelations = {
 			
 				<div class="entry"
 					v-if="!readonly"
-					@click="$emit('createNew','relation')"
+					@click="$emit('createNew','relation',{ view:false })"
 					:class="{ clickable:!readonly }"
 				>
 					<div class="row gap centered">
-						<img class="icon" src="images/add.png" />
-						<span>{{ capGen.button.new }}</span>
+						<img class="icon" src="images/databaseAdd.png" />
+						<span>New table</span>
+					</div>
+				</div>
+				<div class="entry"
+					v-if="!readonly"
+					@click="$emit('createNew','relation',{ view:true })"
+					:class="{ clickable:!readonly }"
+				>
+					<div class="row gap centered">
+						<img class="icon" src="images/databasePlay.png" />
+						<span>New view</span>
 					</div>
 				</div>
 				
@@ -41,6 +51,13 @@ let MyBuilderRelations = {
 						v-if="r.encryption"
 						:active="false"
 						:captionTitle="capApp.encryptionHint"
+						:naked="true"
+					/>
+					<my-button image="databasePlay.png"
+						v-if="r.view !== undefined"
+						:active="false"
+						:caption="r.view.hasId ? 'view + id' : 'view'"
+						:captionTitle="'PostgreSQL view'"
 						:naked="true"
 					/>
 					<my-button image="time.png"
@@ -65,6 +82,7 @@ let MyBuilderRelations = {
 		id:      { type:String,  required:true },
 		readonly:{ type:Boolean, required:true }
 	},
+	emits:['createNew'],
 	data() {
 		return {
 			filter:'',

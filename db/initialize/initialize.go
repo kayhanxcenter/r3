@@ -3038,6 +3038,27 @@ CREATE TABLE app.relation (
 
 
 --
+-- TOC entry 253 (class 1259 OID 17042)
+-- Name: relation_view; Type: TABLE; Schema: app; Owner: -
+--
+
+CREATE TABLE app.relation_view (
+	relation_id uuid NOT NULL,
+	has_id boolean DEFAULT true NOT NULL,
+	managed boolean DEFAULT false NOT NULL,
+	sql text,
+	sql_template text,
+	definition_json jsonb
+);
+
+CREATE TABLE app.relation_view_depends (
+	relation_id uuid NOT NULL,
+	entity text NOT NULL,
+	entity_id uuid NOT NULL
+);
+
+
+--
 -- TOC entry 253 (class 1259 OID 17043)
 -- Name: relation_policy; Type: TABLE; Schema: app; Owner: -
 --
@@ -4549,6 +4570,18 @@ ALTER TABLE ONLY app.query
 
 ALTER TABLE ONLY app.relation
 	ADD CONSTRAINT relation_pkey PRIMARY KEY (id);
+
+
+--
+-- TOC entry 3774 (class 2606 OID 17285)
+-- Name: relation_view relation_view_pkey; Type: CONSTRAINT; Schema: app; Owner: -
+--
+
+ALTER TABLE ONLY app.relation_view
+	ADD CONSTRAINT relation_view_pkey PRIMARY KEY (relation_id);
+
+ALTER TABLE ONLY app.relation_view_depends
+	ADD CONSTRAINT relation_view_depends_pkey PRIMARY KEY (relation_id, entity, entity_id);
 
 
 --
@@ -6184,6 +6217,18 @@ CREATE INDEX fki_query_relation_id_fkey ON app.query USING btree (relation_id);
 --
 
 CREATE INDEX fki_relation_module_fkey ON app.relation USING btree (module_id);
+
+
+--
+-- TOC entry 3774 (class 1259 OID 17449)
+-- Name: fki_relation_view_relation_id_fkey; Type: INDEX; Schema: app; Owner: -
+--
+
+CREATE INDEX fki_relation_view_relation_id_fkey ON app.relation_view USING btree (relation_id);
+
+CREATE INDEX fki_relation_view_depends_entity ON app.relation_view_depends USING btree (entity, entity_id);
+
+CREATE INDEX fki_relation_view_depends_relation_id_fkey ON app.relation_view_depends USING btree (relation_id);
 
 
 --
@@ -8643,6 +8688,18 @@ ALTER TABLE ONLY app.query
 
 ALTER TABLE ONLY app.relation
 	ADD CONSTRAINT relation_module_id_fkey FOREIGN KEY (module_id) REFERENCES app.module(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED NOT VALID;
+
+
+--
+-- TOC entry 4150 (class 2606 OID 18171)
+-- Name: relation_view relation_view_relation_id_fkey; Type: FK CONSTRAINT; Schema: app; Owner: -
+--
+
+ALTER TABLE ONLY app.relation_view
+	ADD CONSTRAINT relation_view_relation_id_fkey FOREIGN KEY (relation_id) REFERENCES app.relation(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+ALTER TABLE ONLY app.relation_view_depends
+	ADD CONSTRAINT relation_view_depends_relation_id_fkey FOREIGN KEY (relation_id) REFERENCES app.relation(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
 
 
 --

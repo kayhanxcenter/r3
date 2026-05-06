@@ -10,6 +10,7 @@ import (
 	"r3/schema/compatible"
 	"r3/schema/pgFunction"
 	"r3/schema/pgIndex"
+	"r3/schema/relation_view"
 	"r3/types"
 	"slices"
 
@@ -29,6 +30,22 @@ var fkBreakActions = []string{"NO ACTION", "RESTRICT", "CASCADE", "SET NULL",
 	"SET DEFAULT"}
 
 func Del_tx(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
+
+	var relationId uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		SELECT relation_id
+		FROM app.attribute
+		WHERE id = $1
+	`, id).Scan(&relationId); err != nil {
+		return err
+	}
+	view, err := relation_view.Get_tx(ctx, tx, relationId)
+	if err != nil {
+		return err
+	}
+	if view != nil {
+		return fmt.Errorf("view relation attributes are read-only")
+	}
 
 	moduleName, relationName, name, content, err := schema.GetAttributeDetailsById_tx(ctx, tx, id)
 	if err != nil {
@@ -121,6 +138,14 @@ func Set_tx(ctx context.Context, tx pgx.Tx, atr types.Attribute, fromLocal bool)
 	}
 	if !slices.Contains(contentUseTypes, atr.ContentUse) {
 		return fmt.Errorf("invalid attribute content use type '%s'", atr.ContentUse)
+	}
+
+	view, err := relation_view.Get_tx(ctx, tx, atr.RelationId)
+	if err != nil {
+		return err
+	}
+	if view != nil {
+		return fmt.Errorf("view relation attributes are read-only")
 	}
 
 	_, moduleName, err := schema.GetModuleDetailsByRelationId_tx(ctx, tx, atr.RelationId)
@@ -499,6 +524,9 @@ func setName_tx(ctx context.Context, tx pgx.Tx, id uuid.UUID, name string, ignor
 			return err
 		}
 		if err := pgFunction.RecreateAffectedBy_tx(ctx, tx, schema.DbAttribute, id); err != nil {
+			return err
+		}
+		if err := relation_view.RecreateAffectedBy_tx(ctx, tx, string(schema.DbAttribute), id); err != nil {
 			return err
 		}
 	}

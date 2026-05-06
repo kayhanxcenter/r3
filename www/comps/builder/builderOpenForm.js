@@ -19,7 +19,7 @@ export default {
 						<option v-if="allowAllForms" v-for="f in module.forms" :value="f.id">{{ f.name }}</option>
 						<template v-if="!allowAllForms" v-for="j in joinsIndexMapField">
 							<option
-								v-for="f in module.forms.filter(v => v.query !== null && v.query.relationId === j.relationId)"
+								v-for="f in getFormsForJoin(module.forms,j)"
 								:value="j.index + '_' + f.id"
 							>{{ getItemTitleRelation(j.relationId,j.index) + ': ' + f.name }}</option>
 						</template>
@@ -29,10 +29,10 @@ export default {
 							v-for="mod in getDependentModules(module).filter(v => v.id !== module.id && v.forms.length !== 0)"
 							:label="mod.name"
 						>
-							<option v-if="allowAllForms" v-for="f in module.forms" :value="f.id">{{ f.name }}</option>
+							<option v-if="allowAllForms" v-for="f in mod.forms" :value="f.id">{{ f.name }}</option>
 							<template v-if="!allowAllForms" v-for="j in joinsIndexMapField">
 								<option
-									v-for="f in mod.forms.filter(v => v.query !== null && v.query.relationId === j.relationId)"
+									v-for="f in getFormsForJoin(mod.forms,j)"
 									:value="j.index + '_' + f.id"
 								>{{ getItemTitleRelation(j.relationId,j.index) + ': ' + f.name }}</option>
 							</template>
@@ -280,6 +280,18 @@ export default {
 		getDependentRelations,
 		getItemTitleRelation,
 		getTemplateOpenForm,
-		isAttributeRelationship
+		isAttributeRelationship,
+
+		getFormsForJoin(forms,join) {
+			const rel = this.relationIdMap[join.relationId];
+			const isViewWithId = rel.view !== undefined && rel.view !== null && rel.view.hasId;
+
+			return forms.filter(f =>
+				f.query !== null && (
+					f.query.relationId === join.relationId ||
+					isViewWithId
+				)
+			);
+		}
 	}
 };

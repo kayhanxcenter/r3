@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"r3/schema"
+	"r3/schema/relation_view"
 	"strings"
 
 	"github.com/gofrs/uuid"
@@ -46,15 +47,27 @@ func GetPreview(ctx context.Context, tx pgx.Tx, id uuid.UUID, limit int, offset 
 	`, modName, relName)).Scan(&res.RowCount); err != nil {
 		return nil, err
 	}
+	if len(atrNames) == 0 {
+		return res, nil
+	}
+
+	orderBy := fmt.Sprintf(`ORDER BY "%s" ASC`, schema.PkName)
+	view, err := relation_view.Get_tx(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	if view != nil && !view.HasId {
+		orderBy = ""
+	}
 
 	// get records from relation
 	rows, err := tx.Query(ctx, fmt.Sprintf(`
 		SELECT "%s"
 		FROM "%s"."%s"
-		ORDER BY "%s" ASC
+		%s
 		LIMIT $1
 		OFFSET $2
-	`, strings.Join(atrNames, `", "`), modName, relName, schema.PkName), limit, offset)
+	`, strings.Join(atrNames, `", "`), modName, relName, orderBy), limit, offset)
 	if err != nil {
 		return nil, err
 	}
